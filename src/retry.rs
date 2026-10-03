@@ -40,7 +40,7 @@ pub type RetryPredicate = Arc<dyn Fn(&Error) -> bool + Send + Sync>;
 /// To change one field, start from an existing policy:
 ///
 /// ```
-/// use kunobi_jev::RetryPolicy;
+/// use kunobi_decision::RetryPolicy;
 ///
 /// let policy = RetryPolicy { max_retries: 5, ..RetryPolicy::default() };
 /// ```
@@ -71,7 +71,7 @@ pub struct RetryPolicy {
     /// caller can classify, such as a specific API message worth another try.
     ///
     /// ```
-    /// use kunobi_jev::{Error, RetryPolicy};
+    /// use kunobi_decision::{Error, RetryPolicy};
     ///
     /// let policy = RetryPolicy::default()
     ///     .retry_if(|error: &Error| error.status().is_some_and(|status| status == 409));

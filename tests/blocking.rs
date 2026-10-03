@@ -2,8 +2,8 @@
 
 #![cfg(feature = "blocking")]
 
-use kunobi_jev::blocking::Client;
-use kunobi_jev::{Questions, SystemOneRequest, noul};
+use kunobi_decision::blocking::Client;
+use kunobi_decision::{Questions, SystemOneRequest, noul};
 use serde_json::json;
 use wiremock::matchers::path;
 use wiremock::{Mock, MockServer, ResponseTemplate};

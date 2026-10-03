@@ -2,10 +2,10 @@
 
 use std::time::Duration;
 
-use kunobi_jev::{Client, Entry, Error, Questions, SystemOneRequest, choice_of, noul, score};
+use kunobi_decision::{Client, Entry, Error, Questions, SystemOneRequest, choice_of, noul, score};
 use serde_json::json;
 
-kunobi_jev::labels! {
+kunobi_decision::labels! {
     /// The customer's tone.
     pub enum Tone {
         Calm = "calm",

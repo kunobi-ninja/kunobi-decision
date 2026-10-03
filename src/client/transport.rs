@@ -26,7 +26,7 @@ const RETRY_COUNT_HEADER: &str = "x-typesafe-retry-count";
 /// A call with every option resolved against the client.
 pub(crate) struct Resolved {
     pub(crate) method: Method,
-    pub(crate) path: &'static str,
+    pub(crate) path: String,
     pub(crate) body: Option<Bytes>,
     pub(crate) headers: HeaderMap,
     pub(crate) timeout: Duration,
@@ -62,7 +62,7 @@ impl Client {
             "typesafe.request",
             otel.kind = "client",
             http.request.method = %req.method,
-            url.path = req.path,
+            url.path = req.path.as_str(),
             typesafe.request.number = number,
             http.request.resend_count = Empty,
             http.response.status_code = Empty,
@@ -201,7 +201,12 @@ impl Client {
                 });
             }
 
-            let error = ApiError::from_response(status, response_headers, &body);
+            let error_body = if matches!(self.provider(), crate::Provider::Cloudflare { .. }) {
+                &b"{}"[..]
+            } else {
+                &body
+            };
+            let error = ApiError::from_response(status, response_headers, error_body);
             let error = Error::from(error);
             if retries_left == 0
                 || !(req.retry.is_retryable_status(status.as_u16())

@@ -4,7 +4,7 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use kunobi_jev::{Client, Questions, SystemOneRequest, noul};
+use kunobi_decision::{Client, Questions, SystemOneRequest, noul};
 use serde_json::json;
 use wiremock::matchers::path;
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -125,7 +125,7 @@ async fn a_final_timeout_does_not_carry_an_earlier_status() {
         .api_key(SECRET)
         .base_url(server.uri())
         .timeout(Duration::from_millis(50))
-        .retry(kunobi_jev::RetryPolicy {
+        .retry(kunobi_decision::RetryPolicy {
             max_retries: 1,
             backoff_initial: Duration::from_millis(1),
             backoff_jitter: 0.0,

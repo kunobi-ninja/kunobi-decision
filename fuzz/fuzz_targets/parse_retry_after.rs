@@ -5,8 +5,8 @@
 
 use std::time::{Duration, SystemTime};
 
-use kunobi_jev::reqwest::header::{HeaderMap, HeaderValue};
-use kunobi_jev::{RetryPolicy, parse_retry_after};
+use kunobi_decision::reqwest::header::{HeaderMap, HeaderValue};
+use kunobi_decision::{RetryPolicy, parse_retry_after};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

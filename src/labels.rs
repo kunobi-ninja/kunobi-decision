@@ -35,7 +35,7 @@ pub trait Labels: Sized + Copy + Eq + 'static {
 /// supported, because the generated `Labels` impl lists every variant.
 ///
 /// ```
-/// kunobi_jev::labels! {
+/// kunobi_decision::labels! {
 ///     /// Who should handle a ticket.
 ///     pub enum Team {
 ///         Billing = "billing": "Payment or subscription issues",
@@ -44,7 +44,7 @@ pub trait Labels: Sized + Copy + Eq + 'static {
 ///     }
 /// }
 ///
-/// use kunobi_jev::Labels;
+/// use kunobi_decision::Labels;
 /// assert_eq!(Team::Billing.label(), "billing");
 /// assert_eq!(Team::from_label("other"), Some(Team::Other));
 /// ```

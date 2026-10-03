@@ -2,9 +2,9 @@
 
 use std::time::{Duration, SystemTime};
 
-use kunobi_jev::reqwest::StatusCode;
-use kunobi_jev::reqwest::header::{HeaderMap, HeaderValue};
-use kunobi_jev::{Answer, ApiError, RetryPolicy, parse_retry_after};
+use kunobi_decision::reqwest::StatusCode;
+use kunobi_decision::reqwest::header::{HeaderMap, HeaderValue};
+use kunobi_decision::{Answer, ApiError, RetryPolicy, parse_retry_after};
 use proptest::prelude::*;
 
 fn headers(pairs: &[(&'static str, String)]) -> HeaderMap {

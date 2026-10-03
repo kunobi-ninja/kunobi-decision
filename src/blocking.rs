@@ -6,9 +6,9 @@
 //! what the underlying runtime would do.
 //!
 //! ```no_run
-//! # fn main() -> kunobi_jev::Result<()> {
-//! use kunobi_jev::blocking::Client;
-//! use kunobi_jev::{Questions, SystemOneRequest, noul};
+//! # fn main() -> kunobi_decision::Result<()> {
+//! use kunobi_decision::blocking::Client;
+//! use kunobi_decision::{Questions, SystemOneRequest, noul};
 //!
 //! let client = Client::new()?;
 //! let mut questions = Questions::new();
@@ -107,8 +107,8 @@ impl Client {
     ) -> Result<T> {
         if tokio::runtime::Handle::try_current().is_ok() {
             return Err(Error::Config(
-                "kunobi_jev::blocking::Client was called from inside an async runtime, which \
-                 would block the thread driving it. Use kunobi_jev::Client there, or call this \
+                "kunobi_decision::blocking::Client was called from inside an async runtime, which \
+                 would block the thread driving it. Use kunobi_decision::Client there, or call this \
                  from a thread with no runtime (for example tokio::task::spawn_blocking)."
                     .into(),
             ));
@@ -127,10 +127,10 @@ impl BlockingClientBuilder {
     /// Configure the underlying async client.
     ///
     /// ```no_run
-    /// # fn main() -> kunobi_jev::Result<()> {
+    /// # fn main() -> kunobi_decision::Result<()> {
     /// use std::time::Duration;
     ///
-    /// let client = kunobi_jev::blocking::Client::builder()
+    /// let client = kunobi_decision::blocking::Client::builder()
     ///     .configure(|builder| builder.api_key("sk-…").timeout(Duration::from_secs(5)))
     ///     .build()?;
     /// # let _ = client;
@@ -158,7 +158,8 @@ mod tests {
     #[tokio::test]
     async fn calling_from_an_async_runtime_is_refused() {
         let client = Client::builder()
-            .configure(|builder| builder.api_key("k"))
+            // No request is sent. A loopback root keeps this test usable without TLS.
+            .configure(|builder| builder.api_key("k").base_url("http://localhost:1234"))
             .build()
             .unwrap();
         let mut questions = crate::Questions::new();
@@ -168,6 +169,6 @@ mod tests {
             .system_one(SystemOneRequest::new("state", questions))
             .unwrap_err();
         assert!(err.to_string().contains("inside an async runtime"), "{err}");
-        assert!(err.to_string().contains("kunobi_jev::Client"), "{err}");
+        assert!(err.to_string().contains("kunobi_decision::Client"), "{err}");
     }
 }

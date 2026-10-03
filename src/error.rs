@@ -262,8 +262,9 @@ impl fmt::Display for ApiError {
 impl std::error::Error for ApiError {}
 
 pub(crate) fn request_id_from(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get(REQUEST_ID_HEADER)
+    [REQUEST_ID_HEADER, "cf-ray", "x-request-id", "x-vercel-id"]
+        .into_iter()
+        .find_map(|name| headers.get(name))
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned)
 }

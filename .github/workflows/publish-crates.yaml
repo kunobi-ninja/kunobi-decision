@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish kunobi-jev to crates.io
+    name: Publish kunobi-decision to crates.io
     runs-on: ubuntu-latest
     # crates.io OIDC Trusted Publishing: GitHub mints a short-lived OIDC token
     # (id-token: write), `rust-lang/crates-io-auth-action` exchanges it for a
@@ -47,15 +47,15 @@ jobs:
         run: |
           version="${RELEASE_TAG#v}"
           manifest_version="$(cargo metadata --no-deps --format-version 1 \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')"
+            | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "kunobi-decision"))')"
           if [ "$manifest_version" != "$version" ]; then
             echo "Cargo.toml version $manifest_version does not match release tag $RELEASE_TAG" >&2
             exit 1
           fi
           echo "Release tag $RELEASE_TAG matches Cargo.toml version $manifest_version"
 
-      - name: Package kunobi-jev
-        run: cargo package -p kunobi-jev --locked
+      - name: Package kunobi-decision
+        run: cargo package -p kunobi-decision --locked
 
       # Checked before authenticating, so re-running a release, or releasing a version
       # that was published by hand (like the first one), passes without a token.
@@ -63,17 +63,17 @@ jobs:
         id: published
         run: |
           version="${RELEASE_TAG#v}"
-          status="$(curl -sS -A kunobi-jev-publish-workflow -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/kunobi-jev/$version")"
+          status="$(curl -sS -A kunobi-decision-publish-workflow -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/kunobi-decision/$version")"
           case "$status" in
             200)
-              echo "kunobi-jev $version is already published; nothing to do"
+              echo "kunobi-decision $version is already published; nothing to do"
               echo "exists=true" >> "$GITHUB_OUTPUT"
               ;;
             404)
               echo "exists=false" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "unexpected crates.io status while checking kunobi-jev $version: $status" >&2
+              echo "unexpected crates.io status while checking kunobi-decision $version: $status" >&2
               exit 1
               ;;
           esac
@@ -85,7 +85,47 @@ jobs:
         # tag still runs on the deprecated Node 20 runtime.
         uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
 
-      - name: Publish kunobi-jev
+      - name: Publish kunobi-decision
+        if: steps.published.outputs.exists == 'false'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish -p kunobi-decision --locked
+
+  compatibility:
+    name: Publish kunobi-jev compatibility crate
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Install mise tools
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          experimental: true
+          install_args: rust
+      - name: Check compatibility version and publication
+        id: published
+        run: |
+          version="${RELEASE_TAG#v}"
+          manifest_version="$(python3 -c 'import tomllib; print(tomllib.load(open("compat/kunobi-jev/Cargo.toml", "rb"))["package"]["version"])')"
+          test "$manifest_version" = "$version"
+          status="$(curl -sS -A kunobi-jev-publish-workflow -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/kunobi-jev/$version")"
+          case "$status" in
+            200) echo "exists=true" >> "$GITHUB_OUTPUT" ;;
+            404) echo "exists=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unexpected registry status: $status" >&2; exit 1 ;;
+          esac
+      - name: Authenticate to crates.io
+        if: steps.published.outputs.exists == 'false'
+        id: auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+      - name: Publish compatibility crate
         if: steps.published.outputs.exists == 'false'
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
