@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -20,7 +23,8 @@ env:
 jobs:
   checks:
     name: Rust Checks
-    runs-on: kunobi-runners
+    # Adopted contributions stay on disposable runners until reviewed and merged.
+    runs-on: ${{ startsWith(github.head_ref || github.ref_name, 'review-contribution/') && 'ubuntu-latest' || 'kunobi-runners' }}
     container:
       image: rust:1.94-bookworm
     timeout-minutes: 15
@@ -88,7 +92,7 @@ jobs:
 
   deny:
     name: cargo-deny
-    runs-on: kunobi-runners
+    runs-on: ${{ startsWith(github.head_ref || github.ref_name, 'review-contribution/') && 'ubuntu-latest' || 'kunobi-runners' }}
     container:
       image: rust:1.94-bookworm
     timeout-minutes: 10
@@ -116,6 +120,8 @@ jobs:
 
   e2e:
     name: E2E (TypeSafe API)
+    # The live suite receives a repository secret; adoption branches cannot use it.
+    if: ${{ !startsWith(github.head_ref || github.ref_name, 'review-contribution/') }}
     runs-on: kunobi-runners
     container:
       image: rust:1.94-bookworm
