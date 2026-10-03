@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use kunobi_jev::{BoxError, Client, Error, RetryPolicy};
+use kunobi_decision::{BoxError, Client, Error, RetryPolicy};
 use serde_json::json;
 use wiremock::matchers::path;
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -87,7 +87,7 @@ async fn provider_failures_stop_the_call_without_sending_or_retrying() {
 }
 
 #[tokio::test]
-async fn cross_host_redirects_drop_the_authorization_header() {
+async fn default_client_refuses_redirects() {
     let target = MockServer::start().await;
     Mock::given(path("/v1/models"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"models": []})))
@@ -103,7 +103,7 @@ async fn cross_host_redirects_drop_the_authorization_header() {
         .mount(&origin)
         .await;
 
-    Client::builder()
+    let error = Client::builder()
         .api_key(SECRET)
         .base_url(origin.uri())
         .build()
@@ -111,9 +111,8 @@ async fn cross_host_redirects_drop_the_authorization_header() {
         .models()
         .list()
         .await
-        .unwrap();
+        .unwrap_err();
 
-    let redirected = target.received_requests().await.unwrap();
-    assert_eq!(redirected.len(), 1);
-    assert!(redirected[0].headers.get("authorization").is_none());
+    assert_eq!(error.status().unwrap().as_u16(), 307);
+    assert!(target.received_requests().await.unwrap().is_empty());
 }

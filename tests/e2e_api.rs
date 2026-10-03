@@ -6,10 +6,10 @@
 //! TYPESAFE_API_KEY=... cargo test --test e2e_api -- --ignored --nocapture
 //! ```
 
-use kunobi_jev::{Client, Entry, Questions, SystemOneRequest, choice, choice_of, noul, score};
+use kunobi_decision::{Client, Entry, Questions, SystemOneRequest, choice, choice_of, noul, score};
 use serde_json::json;
 
-kunobi_jev::labels! {
+kunobi_decision::labels! {
     enum Channel {
         Payments = "payments": "Payment providers such as Stripe",
         Email = "email",

@@ -1,6 +1,7 @@
-//! Rust client for the [TypeSafe](https://docs.typesafe.ai) System One API.
+//! Typed decision clients for TypeSafe Jev, Cloudflare Clef, Liquid d1, Vercel and OpenRouter.
+//! Select an access service with [`ClientBuilder::provider`].
 //!
-//! Send state and typed questions to Jev; get structured answers with
+//! Send state and typed questions to a decision model; get structured answers with
 //! probabilities and confidence that code can act on directly.
 //!
 //! - [`noul`]: a yes/no question, answered with the probability of yes.
@@ -8,8 +9,8 @@
 //! - [`score`]: rate against ordered levels, answered with an expected score.
 //!
 //! ```no_run
-//! # async fn example() -> kunobi_jev::Result<()> {
-//! use kunobi_jev::{Client, Questions, SystemOneRequest, choice_labels, noul, score};
+//! # async fn example() -> kunobi_decision::Result<()> {
+//! use kunobi_decision::{Client, Questions, SystemOneRequest, choice_labels, noul, score};
 //!
 //! let client = Client::new()?; // reads TYPESAFE_API_KEY
 //!
@@ -67,7 +68,7 @@ pub use answers::{
 };
 pub use client::{
     Call, Client, ClientBuilder, DEFAULT_BASE_URL, DEFAULT_MODEL, ENV_API_KEY, ENV_BASE_URL,
-    ENV_DEFAULT_MODEL, Models, RawResponse, WithResponse,
+    ENV_DEFAULT_MODEL, Models, Provider, RawResponse, WithResponse,
 };
 pub use credentials::{BoxError, CredentialProvider, ExposeSecret, SecretString, TokenFuture};
 pub use error::{ApiError, ApiErrorKind, Error, ErrorBody, REQUEST_ID_HEADER, Result};

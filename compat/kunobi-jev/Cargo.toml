@@ -1,0 +1,18 @@
+[package]
+name = "kunobi-jev"
+version = "0.3.0"
+edition = "2024"
+rust-version = "1.94"
+license = "Apache-2.0"
+description = "Compatibility shim for kunobi-decision"
+repository = "https://github.com/kunobi-ninja/kunobi-decision"
+
+[features]
+default = ["rustls"]
+rustls = ["kunobi-decision/rustls"]
+native-tls = ["kunobi-decision/native-tls"]
+testing = ["kunobi-decision/testing"]
+blocking = ["kunobi-decision/blocking"]
+
+[dependencies]
+kunobi-decision = { version = "0.3", path = "../..", default-features = false }

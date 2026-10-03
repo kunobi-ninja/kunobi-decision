@@ -564,8 +564,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "kunobi-jev"
-version = "0.1.0"
+name = "kunobi-decision"
+version = "0.3.0"
 dependencies = [
  "bytes",
  "fastrand",
@@ -582,10 +582,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "kunobi-jev-fuzz"
+name = "kunobi-decision-fuzz"
 version = "0.0.0"
 dependencies = [
- "kunobi-jev",
+ "kunobi-decision",
  "libfuzzer-sys",
  "serde_json",
 ]

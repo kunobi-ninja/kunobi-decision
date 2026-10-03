@@ -22,7 +22,7 @@ pub type AskFuture<'a> = Pin<Box<dyn Future<Output = Result<SystemOneResult>> + 
 /// behind the `testing` feature.
 ///
 /// ```
-/// use kunobi_jev::{Questions, Result, SystemOne, SystemOneRequest, noul};
+/// use kunobi_decision::{Questions, Result, SystemOne, SystemOneRequest, noul};
 ///
 /// async fn is_billing(jev: &dyn SystemOne, ticket: &str) -> Result<bool> {
 ///     let mut questions = Questions::new();

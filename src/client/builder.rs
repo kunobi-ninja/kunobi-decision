@@ -11,8 +11,8 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use secrecy::SecretString;
 use tokio::sync::Semaphore;
 
-use super::env::{ENV_API_KEY, ENV_BASE_URL, ENV_DEFAULT_MODEL, read_env};
-use super::{Client, DEFAULT_BASE_URL, DEFAULT_MODEL, Inner};
+use super::env::read_env;
+use super::{Client, Inner, Provider};
 use crate::credentials::{BoxError, CredentialProvider, Credentials, FnProvider, bearer_header};
 use crate::error::{Error, Result};
 use crate::retry::{DEFAULT_TIMEOUT, DEFAULT_TOTAL_TIMEOUT, RetryPolicy};
@@ -23,6 +23,7 @@ use crate::retry::{DEFAULT_TIMEOUT, DEFAULT_TOTAL_TIMEOUT, RetryPolicy};
 /// Blank environment values are ignored.
 #[derive(Default)]
 pub struct ClientBuilder {
+    provider: Provider,
     credentials: Option<Credentials>,
     base_url: Option<String>,
     allow_insecure_http: bool,
@@ -39,7 +40,13 @@ pub struct ClientBuilder {
 }
 
 impl ClientBuilder {
-    /// Authenticate with a TypeSafe API key; falls back to `TYPESAFE_API_KEY`.
+    /// Select the access provider. TypeSafe is the default.
+    pub fn provider(mut self, provider: Provider) -> Self {
+        self.provider = provider;
+        self
+    }
+
+    /// Authenticate with an API key; falls back to the selected provider's key environment variable.
     ///
     /// The key is held as a [`SecretString`] and wiped from memory when the client
     /// is dropped. Don't embed an API key in software that runs on user machines;
@@ -60,8 +67,8 @@ impl ClientBuilder {
     /// Authenticate with a bearer token from an async closure, asked before every attempt.
     ///
     /// ```no_run
-    /// # fn example() -> kunobi_jev::Result<()> {
-    /// use kunobi_jev::Client;
+    /// # fn example() -> kunobi_decision::Result<()> {
+    /// use kunobi_decision::Client;
     ///
     /// let client = Client::builder()
     ///     .base_url("https://jev.example.com")
@@ -79,7 +86,8 @@ impl ClientBuilder {
         self.credential_provider(FnProvider(provider))
     }
 
-    /// API root; falls back to `TYPESAFE_BASE_URL`, then `https://api.typesafe.ai`.
+    /// API root; defaults to the selected provider's root.
+    /// TypeSafe reads `TYPESAFE_BASE_URL`; OpenRouter reads `OPENROUTER_BASE_URL`.
     ///
     /// Must be https. Plain http is accepted only for loopback hosts, unless
     /// [`ClientBuilder::allow_insecure_http`] is set.
@@ -105,7 +113,8 @@ impl ClientBuilder {
         self
     }
 
-    /// Default model; falls back to `TYPESAFE_DEFAULT_MODEL`, then `jev-latest`.
+    /// Default model; defaults to the selected provider's model.
+    /// TypeSafe reads `TYPESAFE_DEFAULT_MODEL`; OpenRouter reads `OPENROUTER_DEFAULT_MODEL`.
     pub fn default_model(mut self, model: impl Into<String>) -> Self {
         self.default_model = Some(model.into());
         self
@@ -175,12 +184,14 @@ impl ClientBuilder {
     }
 
     fn build_with_env(self, env: impl Fn(&str) -> Option<String>) -> Result<Client> {
+        self.provider.validate()?;
+        let api_key_env = self.provider.api_key_env();
         let credentials = match self.credentials {
             Some(credentials) => credentials,
-            None => Credentials::ApiKey(SecretString::from(env(ENV_API_KEY).ok_or_else(|| {
+            None => Credentials::ApiKey(SecretString::from(env(api_key_env).ok_or_else(|| {
                 Error::Config(format!(
                     "No credentials were provided. Call `ClientBuilder::api_key` or \
-                     `ClientBuilder::credential_provider`, or set the {ENV_API_KEY} environment variable."
+                     `ClientBuilder::credential_provider`, or set the {api_key_env} environment variable."
                 ))
             })?)),
         };
@@ -191,15 +202,15 @@ impl ClientBuilder {
 
         let base_url = self
             .base_url
-            .or_else(|| env(ENV_BASE_URL))
-            .unwrap_or_else(|| DEFAULT_BASE_URL.to_owned());
+            .or_else(|| self.provider.base_url_env().and_then(&env))
+            .unwrap_or_else(|| self.provider.base_url().to_owned());
         let base_url = base_url.trim().trim_end_matches('/').to_owned();
         validate_base_url(&base_url, self.allow_insecure_http)?;
 
         let default_model = self
             .default_model
-            .or_else(|| env(ENV_DEFAULT_MODEL))
-            .unwrap_or_else(|| DEFAULT_MODEL.to_owned());
+            .or_else(|| self.provider.default_model_env().and_then(&env))
+            .unwrap_or_else(|| self.provider.default_model().to_owned());
 
         let retry = self.retry.unwrap_or_default();
         retry.validate()?;
@@ -226,19 +237,21 @@ impl ClientBuilder {
             Some(http) => http,
             None if !TLS_BACKEND && base_url.starts_with("https:") => {
                 return Err(Error::Config(
-                    "kunobi-jev was built without a TLS backend, so it cannot reach an https \
+                    "kunobi-decision was built without a TLS backend, so it cannot reach an https \
                      `base_url`. Enable the `rustls` or `native-tls` feature, or pass a client \
                      through `ClientBuilder::http_client`."
                         .into(),
                 ));
             }
             None => reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .map_err(|err| Error::Config(format!("Could not create the HTTP client: {err}")))?,
         };
 
         Ok(Client {
             inner: Arc::new(Inner {
+                provider: self.provider,
                 credentials,
                 base_url,
                 log_bodies: self.log_bodies,
@@ -265,6 +278,15 @@ fn validate_base_url(base_url: &str, allow_insecure_http: bool) -> Result<()> {
             "`base_url` must be an https URL, got \"{base_url}\"."
         ))
     })?;
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(Error::Config(
+            "`base_url` must not contain credentials, a query or a fragment.".into(),
+        ));
+    }
     match url.scheme() {
         "https" => Ok(()),
         "http" if allow_insecure_http || is_loopback(url.host_str().unwrap_or_default()) => Ok(()),
@@ -299,6 +321,7 @@ pub(crate) fn validate_timeout(timeout: Duration) -> Result<Duration> {
 impl fmt::Debug for ClientBuilder {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ClientBuilder")
+            .field("provider", &self.provider)
             .field("credentials", &self.credentials)
             .field("base_url", &self.base_url)
             .field("allow_insecure_http", &self.allow_insecure_http)
@@ -316,6 +339,7 @@ impl fmt::Debug for ClientBuilder {
 mod tests {
     use super::*;
     use crate::client::env::non_blank;
+    use crate::{DEFAULT_BASE_URL, DEFAULT_MODEL, ENV_API_KEY, ENV_BASE_URL, ENV_DEFAULT_MODEL};
     use std::collections::HashMap;
 
     fn env(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
@@ -342,6 +366,69 @@ mod tests {
             .to_str()
             .unwrap()
             .to_owned()
+    }
+
+    #[tokio::test]
+    async fn provider_credentials_and_defaults_are_isolated_from_typesafe_environment() {
+        for provider in [
+            Provider::Liquid,
+            Provider::Vercel,
+            Provider::OpenRouter,
+            Provider::Cloudflare {
+                account_id: "account".into(),
+            },
+        ] {
+            let client = builder()
+                .provider(provider.clone())
+                .build_with_env(env(&[
+                    (provider.api_key_env(), "provider-key"),
+                    (ENV_API_KEY, "wrong-key"),
+                    (ENV_BASE_URL, "https://wrong.example"),
+                    (ENV_DEFAULT_MODEL, "wrong-model"),
+                ]))
+                .unwrap();
+            assert_eq!(client.base_url(), provider.base_url());
+            assert_eq!(client.default_model(), provider.default_model());
+            assert_eq!(authorization(&client).await, "Bearer provider-key");
+            assert!(
+                builder()
+                    .provider(provider)
+                    .build_with_env(env(&[(ENV_API_KEY, "wrong-key")]))
+                    .is_err()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn openrouter_environment_is_scoped_and_explicit_settings_take_precedence() {
+        let vars = env(&[
+            ("OPENROUTER_API_KEY", "router-key"),
+            ("OPENROUTER_BASE_URL", "http://localhost:9000/api"),
+            ("OPENROUTER_DEFAULT_MODEL", "typesafe/jev-1.13"),
+            (ENV_API_KEY, "typesafe-key"),
+        ]);
+        let c = builder()
+            .provider(Provider::OpenRouter)
+            .build_with_env(&vars)
+            .unwrap();
+        assert_eq!(c.base_url(), "http://localhost:9000/api");
+        assert_eq!(c.default_model(), "typesafe/jev-1.13");
+        assert_eq!(authorization(&c).await, "Bearer router-key");
+        let c = builder()
+            .provider(Provider::OpenRouter)
+            .api_key("explicit-key")
+            .base_url("http://localhost:9001/api")
+            .default_model("liquid/d1")
+            .build_with_env(&vars)
+            .unwrap();
+        assert_eq!(c.base_url(), "http://localhost:9001/api");
+        assert_eq!(c.default_model(), "liquid/d1");
+        assert_eq!(authorization(&c).await, "Bearer explicit-key");
+        let c = builder().build_with_env(vars).unwrap();
+        assert_eq!(c.provider(), &Provider::TypeSafe);
+        assert_eq!(c.base_url(), DEFAULT_BASE_URL);
+        assert_eq!(c.default_model(), DEFAULT_MODEL);
+        assert_eq!(authorization(&c).await, "Bearer typesafe-key");
     }
 
     #[test]

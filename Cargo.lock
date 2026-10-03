@@ -763,8 +763,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "kunobi-jev"
-version = "0.2.0"
+name = "kunobi-decision"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -782,6 +782,13 @@ dependencies = [
  "tracing-subscriber",
  "wiremock",
  "zeroize",
+]
+
+[[package]]
+name = "kunobi-jev"
+version = "0.3.0"
+dependencies = [
+ "kunobi-decision",
 ]
 
 [[package]]
