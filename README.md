@@ -1,16 +1,16 @@
-# kunobi-jev
+# kunobi-decision
 
-[![Crates.io](https://img.shields.io/crates/v/kunobi-jev.svg)](https://crates.io/crates/kunobi-jev)
-[![Docs.rs](https://img.shields.io/docsrs/kunobi-jev)](https://docs.rs/kunobi-jev)
-[![CI](https://github.com/kunobi-ninja/kunobi-jev/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kunobi-ninja/kunobi-jev/actions/workflows/ci.yml)
+[![Crates.io](https://img.shields.io/crates/v/kunobi-decision.svg)](https://crates.io/crates/kunobi-decision)
+[![Docs.rs](https://img.shields.io/docsrs/kunobi-decision)](https://docs.rs/kunobi-decision)
+[![CI](https://github.com/kunobi-ninja/kunobi-decision/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kunobi-ninja/kunobi-decision/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/MSRV-1.94-blue.svg)](Cargo.toml)
 
-Rust client for the [TypeSafe](https://docs.typesafe.ai) System One API. You send
-state and typed questions to Jev, TypeSafe's decision model, and get answers your
+Rust client for typed decision models: TypeSafe Jev, Cloudflare Clef, Liquid d1,
+Vercel AI Gateway and OpenRouter. Send state and typed questions, and get answers your
 code can act on: a label, a score or a probability, each with the numbers behind it.
 
-Jev has three question types:
+The client supports three question types:
 
 | Builder | Asks | Answer |
 | --- | --- | --- |
@@ -34,7 +34,7 @@ This is an unofficial client, maintained by Kunobi. It is not affiliated with Ty
 ## Install
 
 ```toml
-kunobi-jev = "0.2"
+kunobi-decision = "0.3"
 ```
 
 Calls run on Tokio.
@@ -49,15 +49,85 @@ Calls run on Tokio.
 To use the platform TLS library instead of rustls:
 
 ```toml
-kunobi-jev = { version = "0.2", default-features = false, features = ["native-tls"] }
+kunobi-decision = { version = "0.3", default-features = false, features = ["native-tls"] }
 ```
+
+## Providers
+
+Select the service with `Client::builder().provider(...)`. Model IDs are separate:
+
+| Provider | Default model | Key environment variable |
+| --- | --- | --- |
+| `Provider::TypeSafe` | `jev-latest` | `TYPESAFE_API_KEY` |
+| `Provider::Cloudflare { account_id }` | `clef` | `CLOUDFLARE_API_TOKEN` |
+| `Provider::Liquid` | `d1:free` | `LIQUID_API_KEY` |
+| `Provider::Vercel` | `typesafe-ai/jev` | `AI_GATEWAY_API_KEY` |
+| `Provider::OpenRouter` | `~typesafe/jev-latest` | `OPENROUTER_API_KEY` |
+| `Provider::Compatible` | `jev-latest` | `KUNOBI_DECISION_API_KEY` |
+
+```rust,no_run
+use kunobi_decision::{Client, Provider};
+let liquid = Client::builder().provider(Provider::Liquid).build()?;
+let gateway = Client::builder()
+    .provider(Provider::Vercel)
+    .default_model("liquid/d1")
+    .build()?;
+# Ok::<(), kunobi_decision::Error>(())
+```
+
+Cloudflare takes an account ID and calls the Workers AI account API. Use a token
+with Workers AI Write permission. `clef` and `clef-flash` use the same typed
+request and result; the client unwraps Cloudflare's response envelope.
+
+Liquid calls `/decisions/v1/systemone`. Its docs do not specify a model catalog:
+`models().list()` checks the configured model with a small inference request,
+which consumes input tokens. Vercel uses its TypeSafe-compatible API and model
+catalog under `/typesafe/v1`.
+
+Each provider uses the same credential provider, retry policy, request budget,
+and concurrency limit. The default HTTP client refuses redirects. Only TypeSafe
+reads `TYPESAFE_BASE_URL` and `TYPESAFE_DEFAULT_MODEL`; another provider cannot
+inherit a TypeSafe destination or model from the environment.
+
+OpenRouter uses `/api/v1/systemone` for judgments. `models().list()` reads its
+public catalog and returns every model advertising `decisions` output, with its
+routable ID. Any model served through this API's state/questions/answers contract
+can be selected through `.default_model(...)` or `request.model(...)`; Jev is
+the default. No vendor or model-name allowlist is used for OpenRouter. Use
+`client.check().await` to verify the API key before listing models. The key
+response is discarded; no inference is needed. `OPENROUTER_BASE_URL` and
+`OPENROUTER_DEFAULT_MODEL` override its defaults; builder values take precedence.
+
+Other services exposing the same System One contract can use
+`Provider::Compatible` with an explicit base URL. Services with a different
+request or response format require a provider adapter.
+
+Provider contracts: [Cloudflare](https://developers.cloudflare.com/workers-ai/models/clef/),
+[Liquid](https://docs.liquid.ai/lfm/models/decision-models),
+[Vercel](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe),
+[OpenRouter](https://openrouter.ai/docs/guides/community/typesafe-sdk).
+
+## Migration from kunobi-jev
+
+Change the dependency to `kunobi-decision = "0.3"` and imports to
+`kunobi_decision`. Existing System One calls use TypeSafe unless you select
+another provider. The `compat/kunobi-jev` crate re-exports these types and forwards
+the existing Cargo features for callers that need to migrate later.
+
+The repository is `kunobi-ninja/kunobi-decision`. Publish `kunobi-decision`
+0.3.0 first using an API token, then configure its crates.io trusted publisher.
+For both crates, use repository owner `kunobi-ninja`, repository name
+`kunobi-decision` and workflow filename `publish-crates.yaml`. Update the existing
+`kunobi-jev` publisher to the renamed repository before publishing its 0.3.0
+compatibility crate. Earlier `kunobi-jev` releases remain available under their
+original package name.
 
 ## Quick start
 
 Set `TYPESAFE_API_KEY`, then:
 
 ```rust
-use kunobi_jev::{Client, Entry, Questions, SystemOneRequest, choice, noul, score};
+use kunobi_decision::{Client, Entry, Questions, SystemOneRequest, choice, noul, score};
 use serde_json::json;
 
 #[tokio::main]
@@ -109,9 +179,9 @@ Use `Entry::from_serialize(&value)` for your own structs. Object key order is ke
 Declare choice labels as an enum and match on it instead of on strings:
 
 ```rust
-use kunobi_jev::{Client, Questions, SystemOneRequest, choice_of};
+use kunobi_decision::{Client, Questions, SystemOneRequest, choice_of};
 
-kunobi_jev::labels! {
+kunobi_decision::labels! {
     pub enum Team {
         Billing = "billing": "Payment or subscription issues",
         Technical = "technical": "Bugs or integration problems",
@@ -119,7 +189,7 @@ kunobi_jev::labels! {
     }
 }
 
-async fn route(client: &Client, ticket: &str) -> kunobi_jev::Result<Option<Team>> {
+async fn route(client: &Client, ticket: &str) -> kunobi_decision::Result<Option<Team>> {
     let mut questions = Questions::new();
     let team = questions.add("team", choice_of::<Team>("Which team should handle this?"));
     let result = client.system_one(SystemOneRequest::new(ticket, questions)).await?;
@@ -139,7 +209,7 @@ question, and records the requests it received:
 
 ```toml
 [dev-dependencies]
-kunobi-jev = { version = "0.2", features = ["testing"] }
+kunobi-decision = { version = "0.3", features = ["testing"] }
 ```
 
 ```rust
@@ -195,11 +265,11 @@ budget, or remove it.
 ### Without an async runtime
 
 ```toml
-kunobi-jev = { version = "0.2", features = ["blocking"] }
+kunobi-decision = { version = "0.3", features = ["blocking"] }
 ```
 
 ```rust
-use kunobi_jev::blocking::Client;
+use kunobi_decision::blocking::Client;
 
 let client = Client::new()?;
 let models = client.models()?;
@@ -265,7 +335,7 @@ the defaults off. Backoff starts at 500 ms, doubles up to 5 s, and subtracts up 
 jitter. A `retry-after-ms` or `Retry-After` header of up to 60 s replaces the
 backoff. Each retry sends `X-TypeSafe-Retry-Count`.
 
-Errors are one `kunobi_jev::Error` enum:
+Errors are one `kunobi_decision::Error` enum:
 
 - `Api`: a non-2xx response. `ApiError` carries the status, `kind()`, the parsed body,
   the request ID and `retry_after()`.

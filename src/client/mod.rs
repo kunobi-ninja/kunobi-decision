@@ -4,6 +4,8 @@ mod builder;
 mod call;
 mod env;
 mod models;
+mod provider;
+pub use provider::Provider;
 mod transport;
 
 use std::fmt;
@@ -30,7 +32,7 @@ pub const DEFAULT_BASE_URL: &str = "https://api.typesafe.ai";
 /// Default model.
 pub const DEFAULT_MODEL: &str = "jev-latest";
 
-/// Client for the TypeSafe API.
+/// Client for typed decision APIs.
 ///
 /// Cloning is cheap and clones share one connection pool.
 #[derive(Clone)]
@@ -39,6 +41,7 @@ pub struct Client {
 }
 
 struct Inner {
+    provider: Provider,
     credentials: Credentials,
     base_url: String,
     log_bodies: bool,
@@ -67,6 +70,11 @@ impl Client {
     /// A builder for a client. Values set in code take precedence over the environment.
     pub fn builder() -> ClientBuilder {
         ClientBuilder::default()
+    }
+
+    /// Selected access provider.
+    pub fn provider(&self) -> &Provider {
+        &self.inner.provider
     }
 
     /// API root without trailing slashes.
@@ -109,8 +117,8 @@ impl Client {
     /// Validation errors are returned when the call is awaited, before any request is sent.
     ///
     /// ```no_run
-    /// # async fn example() -> kunobi_jev::Result<()> {
-    /// use kunobi_jev::{Client, Questions, SystemOneRequest, noul};
+    /// # async fn example() -> kunobi_decision::Result<()> {
+    /// use kunobi_decision::{Client, Questions, SystemOneRequest, noul};
     ///
     /// let client = Client::new()?;
     /// let mut questions = Questions::new();
@@ -123,14 +131,44 @@ impl Client {
     /// # Ok(()) }
     /// ```
     pub fn system_one(&self, request: SystemOneRequest) -> Call<SystemOneResult> {
-        let body = request.to_body(self.default_model());
-        Call::new(
-            self.clone(),
-            Method::POST,
-            "/v1/systemone",
-            body.map(Some),
-            call::parse_json,
-        )
+        let prepared = self.provider().prepare(request, self.default_model());
+        let (path, body) = match prepared {
+            Ok((path, body)) => (path, Ok(Some(body))),
+            Err(err) => (String::new(), Err(err)),
+        };
+        let parse = if matches!(self.provider(), Provider::Cloudflare { .. }) {
+            provider::unwrap_cloudflare::<SystemOneResult>
+        } else {
+            call::parse_json
+        };
+        Call::new(self.clone(), Method::POST, path, body, parse)
+    }
+
+    /// Check credentials and return the decision model catalog.
+    ///
+    /// OpenRouter's catalog is public, so first check `/v1/key`. Key metadata
+    /// is discarded. Liquid uses a small inference probe, consuming input tokens.
+    /// The client's total timeout bounds all requests in this operation.
+    pub async fn check(&self) -> crate::Result<Vec<crate::ModelCard>> {
+        let check = async {
+            if matches!(self.provider(), Provider::OpenRouter) {
+                Call::new(
+                    self.clone(),
+                    Method::GET,
+                    "/v1/key",
+                    Ok(None),
+                    parse_openrouter_key,
+                )
+                .await?;
+            }
+            self.models().list().await
+        };
+        match self.total_timeout() {
+            Some(timeout) => tokio::time::timeout(timeout, check)
+                .await
+                .unwrap_or(Err(crate::Error::Timeout { timeout })),
+            None => check.await,
+        }
     }
 
     /// The Models API resource.
@@ -142,6 +180,7 @@ impl Client {
 impl fmt::Debug for Client {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Client")
+            .field("provider", &self.inner.provider)
             .field("base_url", &self.inner.base_url)
             .field("default_model", &self.inner.default_model)
             .field("retry", &self.inner.retry)
@@ -152,4 +191,14 @@ impl fmt::Debug for Client {
             .field("log_bodies", &self.inner.log_bodies)
             .finish_non_exhaustive()
     }
+}
+
+fn parse_openrouter_key(body: &[u8]) -> Result<(), call::DecodeFailure> {
+    #[derive(serde::Deserialize)]
+    struct Key {
+        data: serde_json::Map<String, serde_json::Value>,
+    }
+    let key: Key = call::parse_json(body)?;
+    drop(key.data);
+    Ok(())
 }

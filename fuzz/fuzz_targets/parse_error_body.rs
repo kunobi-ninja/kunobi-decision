@@ -3,9 +3,9 @@
 
 #![no_main]
 
-use kunobi_jev::ApiError;
-use kunobi_jev::reqwest::StatusCode;
-use kunobi_jev::reqwest::header::HeaderMap;
+use kunobi_decision::ApiError;
+use kunobi_decision::reqwest::StatusCode;
+use kunobi_decision::reqwest::header::HeaderMap;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

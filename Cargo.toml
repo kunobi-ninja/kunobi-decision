@@ -1,11 +1,11 @@
 [package]
-name = "kunobi-jev"
-version = "0.2.0"
+name = "kunobi-decision"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.94"
 license = "Apache-2.0"
-description = "Unofficial Rust client for the TypeSafe System One API (Jev): typed Choice, Score and Noul questions"
-repository = "https://github.com/kunobi-ninja/kunobi-jev"
+description = "Typed decision clients for Jev, Cloudflare Clef, Liquid d1, Vercel and OpenRouter"
+repository = "https://github.com/kunobi-ninja/kunobi-decision"
 readme = "README.md"
 keywords = ["typesafe", "jev", "classification", "ai", "api-client"]
 categories = ["api-bindings", "web-programming::http-client"]
@@ -69,3 +69,6 @@ wiremock = "0.6"
 # Property-based testing for parsers + boundaries.
 proptest = "1.5"
 anyhow = "1"
+
+[workspace]
+members = ["compat/kunobi-jev"]

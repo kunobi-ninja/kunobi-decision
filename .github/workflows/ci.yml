@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -20,7 +23,8 @@ env:
 jobs:
   checks:
     name: Rust Checks
-    runs-on: kunobi-runners
+    # Adopted contributions stay on disposable runners until reviewed and merged.
+    runs-on: ${{ startsWith(github.head_ref || github.ref_name, 'review-contribution/') && 'ubuntu-latest' || 'kunobi-runners' }}
     container:
       image: rust:1.94-bookworm
     timeout-minutes: 15
@@ -53,13 +57,13 @@ jobs:
           tool: cargo-tarpaulin@0.35.4
 
       - name: Check formatting
-        run: cargo fmt --check
+        run: cargo fmt --all --check
 
       - name: Clippy (all targets)
-        run: cargo clippy --all-features --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
 
       - name: Tests
-        run: cargo test --all-features
+        run: cargo test --workspace --all-features
 
       - name: Coverage
         run: cargo tarpaulin --engine llvm --all-features --workspace --out Json --output-dir coverage --fail-under 70
@@ -76,19 +80,19 @@ jobs:
         run: cargo build --no-default-features --features native-tls
 
       - name: Tests (no TLS backend)
-        run: cargo test --no-default-features
+        run: cargo test --workspace --no-default-features
 
       - name: Build docs
-        run: cargo doc --lib --no-deps --all-features
+        run: cargo doc --workspace --lib --no-deps --all-features
 
       # Builds the crate from exactly the files that would be published, so a
       # missing entry in `include` fails here instead of on crates.io.
       - name: Verify package
-        run: cargo package --locked
+        run: cargo package -p kunobi-decision --locked
 
   deny:
     name: cargo-deny
-    runs-on: kunobi-runners
+    runs-on: ${{ startsWith(github.head_ref || github.ref_name, 'review-contribution/') && 'ubuntu-latest' || 'kunobi-runners' }}
     container:
       image: rust:1.94-bookworm
     timeout-minutes: 10
@@ -116,6 +120,8 @@ jobs:
 
   e2e:
     name: E2E (TypeSafe API)
+    # The live suite receives a repository secret; adoption branches cannot use it.
+    if: ${{ !startsWith(github.head_ref || github.ref_name, 'review-contribution/') }}
     runs-on: kunobi-runners
     container:
       image: rust:1.94-bookworm

@@ -2,9 +2,9 @@
 
 use std::time::{Duration, Instant};
 
-use kunobi_jev::reqwest::StatusCode;
-use kunobi_jev::reqwest::header::{HeaderName, HeaderValue};
-use kunobi_jev::{
+use kunobi_decision::reqwest::StatusCode;
+use kunobi_decision::reqwest::header::{HeaderName, HeaderValue};
+use kunobi_decision::{
     ApiErrorKind, Client, Entry, Error, ErrorBody, Questions, RetryPolicy, SystemOneRequest,
     choice, noul, score,
 };
@@ -135,7 +135,7 @@ async fn system_one_sends_the_documented_request_and_types_answers() {
     assert_eq!(get("authorization").as_deref(), Some("Bearer sk-test-key"));
     assert_eq!(get("content-type").as_deref(), Some("application/json"));
     assert_eq!(get("accept").as_deref(), Some("application/json"));
-    let sdk = format!("kunobi-jev/{}", kunobi_jev::VERSION);
+    let sdk = format!("kunobi-decision/{}", kunobi_decision::VERSION);
     assert_eq!(get("user-agent"), Some(sdk.clone()));
     assert_eq!(get("x-typesafe-sdk"), Some(sdk));
     assert!(get("x-typesafe-runtime").unwrap().starts_with("rust ("));
@@ -620,7 +620,7 @@ async fn total_timeout_shortens_a_slow_attempt() {
 
 #[tokio::test]
 async fn the_client_implements_system_one() {
-    use kunobi_jev::SystemOne;
+    use kunobi_decision::SystemOne;
 
     let server = MockServer::start().await;
     Mock::given(path("/v1/systemone"))
@@ -689,7 +689,7 @@ async fn credential_time_counts_against_the_total_timeout() {
         .total_timeout(Duration::from_millis(100))
         .credentials_fn(|| async {
             tokio::time::sleep(Duration::from_millis(80)).await;
-            Ok::<_, kunobi_jev::BoxError>("token")
+            Ok::<_, kunobi_decision::BoxError>("token")
         })
         .build()
         .unwrap();
@@ -798,7 +798,7 @@ async fn a_client_bounds_whole_calls_by_default() {
         .unwrap();
     assert_eq!(
         client.total_timeout(),
-        Some(kunobi_jev::DEFAULT_TOTAL_TIMEOUT)
+        Some(kunobi_decision::DEFAULT_TOTAL_TIMEOUT)
     );
 
     // The bound is removable, for a caller who would rather let the retry
@@ -846,7 +846,7 @@ async fn a_retry_predicate_widens_what_is_retried() {
         .mount(&server)
         .await;
 
-    let policy = fast_retry().retry_if(|error: &kunobi_jev::Error| {
+    let policy = fast_retry().retry_if(|error: &kunobi_decision::Error| {
         error.status().is_some_and(|status| status.as_u16() == 409)
     });
     let models = client(&server).models().list().retry(policy).await.unwrap();
@@ -866,7 +866,7 @@ async fn a_retry_predicate_cannot_disable_the_built_in_rules() {
         .await;
 
     // The predicate says no to everything; 503 is still retried.
-    let policy = fast_retry().retry_if(|_: &kunobi_jev::Error| false);
+    let policy = fast_retry().retry_if(|_: &kunobi_decision::Error| false);
     client(&server).models().list().retry(policy).await.unwrap();
     assert_eq!(received(&server).await.len(), 2);
 }

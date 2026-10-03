@@ -1,10 +1,10 @@
 //! A scripted [`SystemOne`] for tests. Enabled by the `testing` feature.
 //!
 //! ```
-//! use kunobi_jev::testing::FakeSystemOne;
-//! use kunobi_jev::{Questions, SystemOne, SystemOneRequest, choice_of, noul};
+//! use kunobi_decision::testing::FakeSystemOne;
+//! use kunobi_decision::{Questions, SystemOne, SystemOneRequest, choice_of, noul};
 //!
-//! kunobi_jev::labels! {
+//! kunobi_decision::labels! {
 //!     pub enum Tone { Calm = "calm", Angry = "angry" }
 //! }
 //!

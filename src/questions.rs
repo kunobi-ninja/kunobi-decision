@@ -41,7 +41,7 @@ pub enum Question {
     /// carries its own `type`.
     ///
     /// ```
-    /// use kunobi_jev::{Question, Questions};
+    /// use kunobi_decision::{Question, Questions};
     /// use serde_json::json;
     ///
     /// let mut questions = Questions::new();
@@ -167,7 +167,7 @@ pub fn noul(instructions: impl Into<Entry>) -> NoulQuestion {
 /// Create a choice between labels, each with a description.
 ///
 /// ```
-/// use kunobi_jev::choice;
+/// use kunobi_decision::choice;
 ///
 /// let q = choice("Which team should handle this?", [
 ///     ("billing", "Payment or subscription issues"),
@@ -243,9 +243,9 @@ impl<L> fmt::Debug for TypedChoice<L> {
 /// Create a choice between the labels of a [`Labels`] enum, in declaration order.
 ///
 /// ```
-/// use kunobi_jev::{Questions, choice_of};
+/// use kunobi_decision::{Questions, choice_of};
 ///
-/// kunobi_jev::labels! {
+/// kunobi_decision::labels! {
 ///     pub enum Tone {
 ///         Calm = "calm",
 ///         Angry = "angry": "Strong language or threats",

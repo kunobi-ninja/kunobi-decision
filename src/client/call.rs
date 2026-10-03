@@ -38,7 +38,7 @@ pub(crate) fn parse_json<T: DeserializeOwned>(
 /// request and any pending retry.
 ///
 /// ```no_run
-/// # async fn example(client: kunobi_jev::Client) -> kunobi_jev::Result<()> {
+/// # async fn example(client: kunobi_decision::Client) -> kunobi_decision::Result<()> {
 /// use std::time::Duration;
 ///
 /// let models = client
@@ -55,7 +55,7 @@ pub(crate) fn parse_json<T: DeserializeOwned>(
 pub struct Call<T> {
     client: Client,
     method: Method,
-    path: &'static str,
+    path: String,
     body: Result<Option<Bytes>>,
     timeout: Option<Duration>,
     /// Outer `None` means "not set, use the client's"; inner `None` means this
@@ -97,14 +97,14 @@ impl<T> Call<T> {
     pub(crate) fn new(
         client: Client,
         method: Method,
-        path: &'static str,
+        path: impl Into<String>,
         body: Result<Option<Vec<u8>>>,
         parse: Parser<T>,
     ) -> Self {
         Self {
             client,
             method,
-            path,
+            path: path.into(),
             body: body.map(|body| body.map(Bytes::from)),
             timeout: None,
             total_timeout: None,
